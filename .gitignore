@@ -1,0 +1,10 @@
+node_modules
+dist
+android/app/build
+android/.gradle
+android/local.properties
+android/app/release
+android/app/debug
+.env
+.env.local
+.DS_Store

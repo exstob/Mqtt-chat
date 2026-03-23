@@ -1,0 +1,5 @@
+{
+  "name": "MQTT Global Chat",
+  "description": "A real-time chat application using the MQTT protocol over WebSockets, allowing users to join public rooms and communicate globally.",
+  "requestFramePermissions": []
+}
