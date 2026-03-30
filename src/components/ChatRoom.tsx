@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import mqtt, { MqttClient } from 'mqtt';
 import { Message, ConnectionConfig, SettingsConfig, RoomInfo } from '../types';
-import { Send, LogOut, Hash, Users, ShieldCheck, AlertCircle, Phone } from 'lucide-react';
+import { Send, LogOut, Hash, Users, ShieldCheck, AlertCircle, Phone, PhoneCall, PhoneOff } from 'lucide-react';
+import { JitsiMeeting } from './JitsiMeeting';
 import { format } from 'date-fns';
 import { cn } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -32,7 +33,30 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
   const [inputText, setInputText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [error, setError] = useState<string | null>(null);
+  const [showCallDialog, setShowCallDialog] = useState(false);
+  const [activeCall, setActiveCall] = useState<{ roomName: string; isCaller: boolean } | null>(null);
+  const [incomingCallFrom, setIncomingCallFrom] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleAcceptCall = () => {
+    setShowCallDialog(false);
+    // Generate room name based on both user IDs (consistent for both parties)
+    const topicParts = roomInfo.id.replace('chat/', '').split('_');
+    const otherId = topicParts.find(id => id !== config.userId) || '';
+    const sortedIds = [config.userId, otherId].sort();
+    const roomName = `mqttchat-${sortedIds[0].slice(0, 8)}-${sortedIds[1].slice(0, 8)}`;
+    setActiveCall({ roomName, isCaller: false });
+    setIncomingCallFrom(null);
+  };
+
+  const handleDeclineCall = () => {
+    setShowCallDialog(false);
+    setIncomingCallFrom(null);
+  };
+
+  const handleCloseMeeting = () => {
+    setActiveCall(null);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -123,6 +147,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
           // Play sound if someone else called
           if (message.senderId !== config.userId) {
             playRingtone();
+            // Show accept/decline dialog
+            setIncomingCallFrom(message.sender);
+            setShowCallDialog(true);
+          } else {
+            // This is our own call message coming back - we initiated the call
+            // Wait for other party to accept via their own flow
           }
         }
 
@@ -174,16 +204,25 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
 
   const handleCall = () => {
     if (!client) return;
+    // Generate consistent room name
+    const topicParts = roomInfo.id.replace('chat/', '').split('_');
+    const otherId = topicParts.find(id => id !== config.userId) || '';
+    const sortedIds = [config.userId, otherId].sort();
+    const roomName = `mqttchat-${sortedIds[0].slice(0, 8)}-${sortedIds[1].slice(0, 8)}`;
+    
     const callMessage: Message = {
       id: crypto.randomUUID(),
       sender: config.username,
       senderId: config.userId,
-      text: '☎️ Incoming Call / Дзвінок!',
+      text: `☎️ Incoming Call / Дзвінок!`,
       timestamp: Date.now(),
       topic: roomInfo.id,
       type: 'call',
     };
     client.publish(roomInfo.id, JSON.stringify(callMessage), { qos: 1 });
+    
+    // Immediately join the meeting as caller
+    setActiveCall({ roomName, isCaller: true });
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -315,6 +354,45 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
         </div>
       </main>
 
+      {activeCall && (
+        <JitsiMeeting
+          roomName={activeCall.roomName}
+          displayName={config.username}
+          onClose={handleCloseMeeting}
+        />
+      )}
+
+      {/* Incoming Call Dialog */}
+      {showCallDialog && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                <PhoneCall className="w-8 h-8 text-emerald-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Incoming Call</h3>
+              <p className="text-gray-500">{incomingCallFrom} is calling you</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeclineCall}
+                className="flex-1 bg-red-100 hover:bg-red-200 text-red-600 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                <PhoneOff className="w-5 h-5" />
+                Decline
+              </button>
+              <button
+                onClick={handleAcceptCall}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                <PhoneCall className="w-5 h-5" />
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <footer className="bg-white border-t border-black/5 p-4 sm:p-6">
         <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex gap-3">
           <input
@@ -337,3 +415,4 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
     </div>
   );
 };
+
