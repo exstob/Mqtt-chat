@@ -1,21 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import mqtt, { MqttClient } from 'mqtt';
-import { Message, ConnectionConfig } from '../types';
-import { Send, LogOut, Hash, Users, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Message, ConnectionConfig, SettingsConfig, RoomInfo } from '../types';
+import { Send, LogOut, Hash, Users, ShieldCheck, AlertCircle, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
-
+import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
 interface ChatRoomProps {
   config: ConnectionConfig;
+  settings: SettingsConfig;
+  roomInfo: RoomInfo;
   onDisconnect: () => void;
 }
 
-export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
+export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, onDisconnect }) => {
   const [client, setClient] = useState<MqttClient | null>(null);
   const [messages, setMessages] = useState<Message[]>(() => {
     // Load history from LocalStorage on initial load
-    const saved = localStorage.getItem(`mqtt_history_${config.room}`);
+    const saved = localStorage.getItem(`mqtt_history_${roomInfo.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -35,15 +38,56 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Function to play a synthesized ringtone
+  const playRingtone = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      const playBeep = (timeOffset: number) => {
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(800, audioCtx.currentTime + timeOffset); // 800Hz beep
+        
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime + timeOffset);
+        gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + timeOffset + 0.1);
+        gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + timeOffset + 0.5);
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.start(audioCtx.currentTime + timeOffset);
+        oscillator.stop(audioCtx.currentTime + timeOffset + 0.5);
+      };
+
+      // Play 3 beeps
+      playBeep(0);
+      playBeep(0.7);
+      playBeep(1.4);
+    } catch (e) {
+      console.error("Audio playback not supported", e);
+    }
+  };
+
   // Save messages to LocalStorage whenever they change
   useEffect(() => {
-    localStorage.setItem(`mqtt_history_${config.room}`, JSON.stringify(messages));
+    localStorage.setItem(`mqtt_history_${roomInfo.id}`, JSON.stringify(messages));
     scrollToBottom();
-  }, [messages, config.room]);
+  }, [messages, roomInfo.id]);
+
+  // Request notification permissions on Android
+  useEffect(() => {
+    if (Capacitor.getPlatform() === 'android') {
+      LocalNotifications.requestPermissions().catch(err => {
+        console.error('Failed to request notification permission', err);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     // Use MQTT v5 for better session management
-    const mqttClient = mqtt.connect(config.brokerUrl, {
+    const mqttClient = mqtt.connect(settings.brokerUrl, {
       clientId: config.clientId,
       protocolVersion: 5,
       clean: false, // Persistent session: broker remembers subscriptions
@@ -59,10 +103,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
       setError(null);
       
       // Subscribe with QoS 1. 
-      // QoS 1 ensures the broker stores messages for this client while offline.
-      mqttClient.subscribe(`chat/${config.room}`, { qos: 1 }, (err) => {
+      mqttClient.subscribe(roomInfo.id, { qos: 1 }, (err) => {
         if (err) {
-          setError('Failed to subscribe to topic');
+          setError('Failed to subscribe to topic: ' + roomInfo.id);
         }
       });
       
@@ -74,9 +117,33 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
     mqttClient.on('message', (topic, payload) => {
       try {
         const message: Message = JSON.parse(payload.toString());
+        
+        // Handle Call Messages
+        if (message.type === 'call') {
+          // Play sound if someone else called
+          if (message.senderId !== config.userId) {
+            playRingtone();
+          }
+        }
+
         setMessages((prev) => {
           // Prevent duplicates (important for persistent sessions)
           if (prev.some(m => m.id === message.id)) return prev;
+
+          // Trigger local notification on Android for new incoming messages
+          if (message.senderId !== config.userId && Capacitor.getPlatform() === 'android') {
+            LocalNotifications.schedule({
+              notifications: [
+                {
+                  title: message.sender,
+                  body: message.type === 'call' ? '☎️ Incoming Call' : message.text,
+                  id: Math.floor(Math.random() * 1000000),
+                  schedule: { at: new Date(Date.now() + 100) },
+                }
+              ]
+            }).catch(e => console.error("Notification error:", e));
+          }
+
           // Keep only last 200 messages in local storage to prevent bloat
           const next = [...prev, message];
           return next.slice(-200);
@@ -96,13 +163,27 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
     return () => {
       mqttClient.end();
     };
-  }, [config]);
+  }, [config, settings, roomInfo.id]);
 
   const handleClearHistory = () => {
-    if (confirm('Clear local chat history for this room?')) {
+    if (window.confirm('Clear local chat history for this room?')) {
       setMessages([]);
-      localStorage.removeItem(`mqtt_history_${config.room}`);
+      localStorage.removeItem(`mqtt_history_${roomInfo.id}`);
     }
+  };
+
+  const handleCall = () => {
+    if (!client) return;
+    const callMessage: Message = {
+      id: crypto.randomUUID(),
+      sender: config.username,
+      senderId: config.userId,
+      text: '☎️ Incoming Call / Дзвінок!',
+      timestamp: Date.now(),
+      topic: roomInfo.id,
+      type: 'call',
+    };
+    client.publish(roomInfo.id, JSON.stringify(callMessage), { qos: 1 });
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -110,28 +191,31 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
     if (!client || !inputText.trim()) return;
 
     const newMessage: Message = {
-      id: `${config.clientId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: crypto.randomUUID(),
       sender: config.username,
+      senderId: config.userId,
       text: inputText,
       timestamp: Date.now(),
-      topic: `chat/${config.room}`,
+      topic: roomInfo.id,
+      type: 'text'
     };
 
-    // Publish with QoS 1 to ensure delivery to the broker
-    client.publish(`chat/${config.room}`, JSON.stringify(newMessage), { qos: 1 });
+    client.publish(roomInfo.id, JSON.stringify(newMessage), { qos: 1 });
     setInputText('');
   };
 
   return (
     <div className="flex flex-col h-screen bg-[#f5f5f5]">
-      {/* Header */}
       <header className="bg-white border-bottom border-black/5 px-6 py-4 flex items-center justify-between shadow-sm z-10">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/10">
-            <Hash className="text-white w-5 h-5" />
+          <div className={cn(
+            "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg",
+            roomInfo.type === 'private' ? "bg-amber-500 shadow-amber-500/10" : "bg-emerald-500 shadow-emerald-500/10"
+          )}>
+            {roomInfo.type === 'private' ? <Users className="text-white w-5 h-5" /> : <Hash className="text-white w-5 h-5" />}
           </div>
           <div>
-            <h2 className="font-semibold text-gray-900 leading-tight">{config.room}</h2>
+            <h2 className="font-semibold text-gray-900 leading-tight">{roomInfo.name}</h2>
             <div className="flex items-center gap-2">
               <span className={cn(
                 "w-2 h-2 rounded-full",
@@ -144,6 +228,18 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          
+          {roomInfo.type === 'private' && status === 'connected' && (
+             <button
+              onClick={handleCall}
+              className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-colors shadow-sm flex items-center gap-2 px-4"
+              title="Ring / Call via MQTT"
+            >
+              <Phone className="w-4 h-4" />
+              <span className="text-xs font-bold uppercase">Ring</span>
+            </button>
+          )}
+
           <button
             onClick={handleClearHistory}
             className="p-2 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors"
@@ -151,10 +247,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
           >
             <AlertCircle className="w-5 h-5" />
           </button>
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span className="text-xs font-medium text-gray-600">{config.username}</span>
-          </div>
+          
           <button
             onClick={onDisconnect}
             className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-xl transition-colors"
@@ -165,7 +258,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
         </div>
       </header>
 
-      {/* Messages Area */}
       <main className="flex-1 overflow-y-auto p-6 space-y-4">
         {status === 'error' && (
           <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl flex items-center gap-3">
@@ -184,7 +276,9 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
         <div className="max-w-4xl mx-auto space-y-4">
           <AnimatePresence initial={false}>
             {messages.map((msg) => {
-              const isMe = msg.sender === config.username;
+              const isMe = msg.senderId === config.userId;
+              const isCall = msg.type === 'call';
+              
               return (
                 <motion.div
                   key={msg.id}
@@ -207,8 +301,10 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
                     "px-4 py-2.5 rounded-2xl text-sm shadow-sm",
                     isMe 
                       ? "bg-emerald-500 text-white rounded-tr-none" 
-                      : "bg-white text-gray-800 border border-black/5 rounded-tl-none"
+                      : "bg-white text-gray-800 border border-black/5 rounded-tl-none",
+                    isCall && "bg-amber-100 text-amber-900 border-amber-200 font-semibold flex items-center gap-2"
                   )}>
+                    {isCall && <Phone className="w-4 h-4 animate-pulse" />}
                     {msg.text}
                   </div>
                 </motion.div>
@@ -219,7 +315,6 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, onDisconnect }) => {
         </div>
       </main>
 
-      {/* Input Area */}
       <footer className="bg-white border-t border-black/5 p-4 sm:p-6">
         <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex gap-3">
           <input
