@@ -102,10 +102,16 @@ export default function App() {
     setConfig(newConfig);
   };
 
+  const handleRemoveUser = () => {
+    if (window.confirm('Remove this user? All chat histories will be preserved, but you will need to register again.')) {
+      localStorage.removeItem('mqtt_chat_user');
+      setConfig(null);
+      setActiveRoom(null);
+    }
+  };
+
   const handleDisconnect = () => {
-    setConfig(null);
     setActiveRoom(null);
-    localStorage.removeItem('mqtt_chat_user'); // also log out
   };
 
   const handleSaveSettings = (newSettings: SettingsConfig) => {
@@ -115,31 +121,27 @@ export default function App() {
   };
 
   const handleJoinRoom = (room: RoomInfo) => {
-    // If it's a private chat and we initiate it by ID, maybe send an invite first!
+    // Send invite notification in background if it's a new private chat
     if (room.type === 'private') {
-      // room.id is chat/uuid1_uuid2
-      // We need to extract the OTHER user's uuid to send an invite.
       const uuids = room.id.replace('chat/', '').split('_');
       const otherUuid = uuids.find(id => id !== config?.userId);
       
-      if (otherUuid && client) {
-        // Send invite
+      if (otherUuid && client && config) {
+        // Send invite notification (non-blocking)
         const inviteMsg: Message = {
            id: crypto.randomUUID(),
-           sender: config!.username,
-           senderId: config!.userId,
+           sender: config.username,
+           senderId: config.userId,
            text: 'Invite',
            timestamp: Date.now(),
            topic: `invites/${otherUuid}`,
            type: 'invite'
         };
         client.publish(`invites/${otherUuid}`, JSON.stringify(inviteMsg), { qos: 1 });
-        alert('Invite sent! Waiting for them to accept...');
-        return; // Wait for accept message before joining room
       }
     }
     
-    // Fallback if invite logic is bypassed:
+    // Always join the room immediately
     setActiveRoom(room);
   };
 
@@ -148,7 +150,8 @@ export default function App() {
       <Settings 
         initialConfig={settings} 
         onSave={handleSaveSettings} 
-        onClose={() => setShowSettings(false)} 
+        onClose={() => setShowSettings(false)}
+        onRemoveUser={config ? handleRemoveUser : undefined}
       />
     );
   }
@@ -162,7 +165,6 @@ export default function App() {
       <Dashboard 
         config={config} 
         onJoinRoom={handleJoinRoom} 
-        onLogout={handleDisconnect} 
         onOpenSettings={() => setShowSettings(true)}
       />
     );

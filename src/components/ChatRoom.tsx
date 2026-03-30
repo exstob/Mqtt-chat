@@ -51,6 +51,21 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
 
   const handleDeclineCall = () => {
     setShowCallDialog(false);
+    
+    // Notify the caller that we declined
+    if (client && incomingCallFrom) {
+      const declineMessage: Message = {
+        id: crypto.randomUUID(),
+        sender: config.username,
+        senderId: config.userId,
+        text: 'Call declined',
+        timestamp: Date.now(),
+        topic: roomInfo.id,
+        type: 'call_declined',
+      };
+      client.publish(roomInfo.id, JSON.stringify(declineMessage), { qos: 1 });
+    }
+    
     setIncomingCallFrom(null);
   };
 
@@ -150,9 +165,15 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
             // Show accept/decline dialog
             setIncomingCallFrom(message.sender);
             setShowCallDialog(true);
-          } else {
-            // This is our own call message coming back - we initiated the call
-            // Wait for other party to accept via their own flow
+          }
+        }
+
+        // Handle Call Declined
+        if (message.type === 'call_declined') {
+          // If we initiated the call and the other party declined
+          if (activeCall?.isCaller && message.senderId !== config.userId) {
+            setActiveCall(null);
+            alert(`${message.sender} declined the call`);
           }
         }
 
