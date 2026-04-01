@@ -32,6 +32,7 @@ export const JitsiMeeting: React.FC<JitsiMeetingProps> = ({ roomName, displayNam
           displayName: displayName,
         },
         configOverwrite: {
+          prejoinPageEnabled: false,
           startWithAudioMuted: true,
           startWithVideoMuted: false,
           // Fix for Android/WebView audio device issues
@@ -123,15 +124,7 @@ export const JitsiMeeting: React.FC<JitsiMeetingProps> = ({ roomName, displayNam
         </button>
       </div>
       
-      {!isReady && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
-            <p className="text-white">Joining meeting...</p>
-          </div>
-        </div>
-      )}
-      
+
       <div ref={containerRef} className="w-full h-full" />
     </div>
   );

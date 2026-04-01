@@ -157,10 +157,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
       try {
         const message: Message = JSON.parse(payload.toString());
         
+        const isRecent = Date.now() - message.timestamp < 45000; // Only react to calls made in the last 45 seconds
+
         // Handle Call Messages
         if (message.type === 'call') {
           // Play sound if someone else called
-          if (message.senderId !== config.userId) {
+          if (message.senderId !== config.userId && isRecent) {
             playRingtone();
             // Show accept/decline dialog
             setIncomingCallFrom(message.sender);
@@ -170,8 +172,8 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
 
         // Handle Call Declined
         if (message.type === 'call_declined') {
-          // If we initiated the call and the other party declined
-          if (activeCall?.isCaller && message.senderId !== config.userId) {
+          // If we initiated the call and the other party declined recently
+          if (activeCall?.isCaller && message.senderId !== config.userId && isRecent) {
             setActiveCall(null);
             alert(`${message.sender} declined the call`);
           }
@@ -182,7 +184,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({ config, settings, roomInfo, 
           if (prev.some(m => m.id === message.id)) return prev;
 
           // Trigger local notification on Android for new incoming messages
-          if (message.senderId !== config.userId && Capacitor.getPlatform() === 'android') {
+          if (message.senderId !== config.userId && Capacitor.getPlatform() === 'android' && isRecent) {
             LocalNotifications.schedule({
               notifications: [
                 {

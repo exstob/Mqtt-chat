@@ -51,7 +51,24 @@ export default function App() {
         try {
           const message: Message = JSON.parse(payload.toString());
           if (message.type === 'invite') {
-            const accept = window.confirm(`User ${message.sender} has invited you to a direct chat! Accept?`);
+            const isRecent = Date.now() - message.timestamp < 45000;
+            const approvedKey = `mqtt_approved_${config.userId}`;
+            const approvedIds: string[] = JSON.parse(localStorage.getItem(approvedKey) || '[]');
+            
+            let accept = false;
+            let isAutoAccept = false;
+
+            if (approvedIds.includes(message.senderId)) {
+              accept = true;
+              isAutoAccept = true;
+            } else if (isRecent) {
+              accept = window.confirm(`User ${message.sender} has invited you to a direct chat! Accept?`);
+              if (accept) {
+                approvedIds.push(message.senderId);
+                localStorage.setItem(approvedKey, JSON.stringify(approvedIds));
+              }
+            }
+
             if (accept) {
               // Create direct topic based on both UUIDs sorted alphabetically
               const sortedIds = [config.userId, message.senderId].sort();
@@ -68,21 +85,26 @@ export default function App() {
               };
               mqttClient.publish(`invites/${message.senderId}`, JSON.stringify(acceptMsg));
               
+              if (!isAutoAccept) {
+                setActiveRoom({
+                  id: newTopic,
+                  name: `Chat with ${message.sender}`,
+                  type: 'private'
+                });
+              }
+            }
+          } else if (message.type === 'accept') {
+            const isRecent = Date.now() - message.timestamp < 45000;
+            if (isRecent) {
+              const sortedIds = [config.userId, message.senderId].sort();
+              const newTopic = `chat/${sortedIds[0]}_${sortedIds[1]}`;
+              alert(`${message.sender} accepted your invite!`);
               setActiveRoom({
                 id: newTopic,
                 name: `Chat with ${message.sender}`,
                 type: 'private'
               });
             }
-          } else if (message.type === 'accept') {
-            const sortedIds = [config.userId, message.senderId].sort();
-            const newTopic = `chat/${sortedIds[0]}_${sortedIds[1]}`;
-            alert(`${message.sender} accepted your invite!`);
-            setActiveRoom({
-              id: newTopic,
-              name: `Chat with ${message.sender}`,
-              type: 'private'
-            });
           }
         } catch (e) {
           console.error("Failed to parse invite message");
@@ -127,17 +149,29 @@ export default function App() {
       const otherUuid = uuids.find(id => id !== config?.userId);
       
       if (otherUuid && client && config) {
-        // Send invite notification (non-blocking)
-        const inviteMsg: Message = {
-           id: crypto.randomUUID(),
-           sender: config.username,
-           senderId: config.userId,
-           text: 'Invite',
-           timestamp: Date.now(),
-           topic: `invites/${otherUuid}`,
-           type: 'invite'
-        };
-        client.publish(`invites/${otherUuid}`, JSON.stringify(inviteMsg), { qos: 1 });
+        // Automatically add them to our approved list since we are initiating/opening the room
+        const approvedKey = `mqtt_approved_${config.userId}`;
+        const approvedIds: string[] = JSON.parse(localStorage.getItem(approvedKey) || '[]');
+        if (!approvedIds.includes(otherUuid)) {
+           approvedIds.push(otherUuid);
+           localStorage.setItem(approvedKey, JSON.stringify(approvedIds));
+        }
+
+        // Only send an invite message if this is a brand new chat (no history)
+        const hasHistory = !!localStorage.getItem(`mqtt_history_${room.id}`);
+        if (!hasHistory) {
+          // Send invite notification (non-blocking)
+          const inviteMsg: Message = {
+             id: crypto.randomUUID(),
+             sender: config.username,
+             senderId: config.userId,
+             text: 'Invite',
+             timestamp: Date.now(),
+             topic: `invites/${otherUuid}`,
+             type: 'invite'
+          };
+          client.publish(`invites/${otherUuid}`, JSON.stringify(inviteMsg), { qos: 1 });
+        }
       }
     }
     

@@ -29,9 +29,9 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect, onOpe
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
     if (config.username.trim() && !config.userId) {
-      const newUserId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+      const newUserId = Math.floor(10000 + Math.random() * 90000).toString();
       const sanitized = config.username.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const newClientId = `chat_v2_${sanitized}_${newUserId.substring(0, 8)}`;
+      const newClientId = `test_client_${Math.floor(Math.random() * 1000)}`;
       setConfig(prev => ({ ...prev, userId: newUserId, clientId: newClientId }));
       setStep(2);
     } else if (config.userId) {
@@ -94,20 +94,20 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect, onOpe
           </form>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
-             <div className="space-y-2">
-               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Registered Username</label>
-               <div className="relative">
-                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
-                 <input
-                   type="text"
-                   value={config.username}
-                   disabled
-                   className="w-full pl-11 pr-4 py-3 bg-gray-50/50 border border-transparent rounded-xl text-gray-700 text-sm font-medium cursor-not-allowed"
-                 />
-                 <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
-               </div>
-             </div>
-  
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Registered Username</label>
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                <input
+                  type="text"
+                  value={config.username}
+                  disabled
+                  className="w-full pl-11 pr-4 py-3 bg-gray-50/50 border border-transparent rounded-xl text-gray-700 text-sm font-medium cursor-not-allowed"
+                />
+                <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+              </div>
+            </div>
+
             <div className="bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-4 space-y-2">
               <div className="flex items-center gap-2 text-indigo-700">
                 <Fingerprint className="w-4 h-4" />
