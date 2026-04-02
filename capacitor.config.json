@@ -2,5 +2,8 @@
   "appId": "com.mychat.app",
   "appName": "MQTT Chat",
   "webDir": "dist",
-  "bundledWebRuntime": false
+  "bundledWebRuntime": false,
+  "server": {
+    "allowNavigation": ["*.jitsi.meet"]
+  }
 }

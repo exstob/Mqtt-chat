@@ -35,6 +35,19 @@
         </provider>
     </application>
 
+    <queries>
+        <!-- Allow launching the Jitsi Meet app -->
+        <package android:name="org.jitsi.meet" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="org.jitsi.meet" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="jitsi-meet" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />

@@ -1,18 +1,28 @@
 import React, { useState } from 'react';
 import { SettingsConfig } from '../types';
-import { Settings as SettingsIcon, Save, ArrowLeft, Wifi, Trash2, AlertTriangle, Plus, Check, X } from 'lucide-react';
+import { Settings as SettingsIcon, Save, ArrowLeft, Wifi, Trash2, AlertTriangle, Plus, Check, X, Copy } from 'lucide-react';
 
 interface SettingsProps {
   initialConfig: SettingsConfig;
   onSave: (config: SettingsConfig) => void;
   onClose: () => void;
   onRemoveUser?: () => void;
+  userId?: string;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ initialConfig, onSave, onClose, onRemoveUser }) => {
+export const Settings: React.FC<SettingsProps> = ({ initialConfig, onSave, onClose, onRemoveUser, userId }) => {
   const [config, setConfig] = useState<SettingsConfig>(initialConfig);
   const [newBroker, setNewBroker] = useState('');
   const [showAddBroker, setShowAddBroker] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyId = () => {
+    if (userId) {
+      navigator.clipboard.writeText(userId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +80,29 @@ export const Settings: React.FC<SettingsProps> = ({ initialConfig, onSave, onClo
       <main className="flex-1 overflow-y-auto p-6 flex justify-center items-start">
         <form onSubmit={handleSubmit} className="w-full max-w-md bg-white rounded-3xl shadow-sm p-8 border border-black/5 space-y-6">
           
+          {/* User ID Section */}
+          {userId && (
+            <div className="space-y-3 pb-6 border-b border-gray-100">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Your User ID</label>
+              <div className="relative group">
+                <code className="block w-full text-xs font-mono bg-indigo-50/50 p-4 pr-12 rounded-xl border border-indigo-100/50 text-indigo-900 break-all select-all">
+                  {userId}
+                </code>
+                <button
+                  type="button"
+                  onClick={handleCopyId}
+                  className="absolute top-1/2 -translate-y-1/2 right-2 p-2 bg-white/80 backdrop-blur-sm shadow-sm border border-indigo-100 rounded-lg text-indigo-600 hover:bg-white transition-colors"
+                  title="Copy ID"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 ml-1 leading-relaxed">
+                Share this unique ID with others to allow them to find and chat with you directly.
+              </p>
+            </div>
+          )}
+
           {/* Saved Brokers List */}
           <div className="space-y-3">
             <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Saved MQTT Brokers</label>

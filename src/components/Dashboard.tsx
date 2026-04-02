@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ConnectionConfig, RoomInfo } from '../types';
-import { Fingerprint, UserPlus, Copy, Check, Info, Settings as SettingsIcon, Trash2, MessageCircle } from 'lucide-react';
+import { ConnectionConfig, RoomInfo, Message } from '../types';
+import { Fingerprint, UserPlus, Info, Settings as SettingsIcon, Trash2, MessageCircle } from 'lucide-react';
 
 interface ChatHistory {
   roomId: string;
   otherUserId: string;
+  otherUserName: string;
   lastMessage?: string;
   messageCount: number;
   timestamp: number;
@@ -18,7 +19,6 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpenSettings }) => {
   const [inviteId, setInviteId] = useState('');
-  const [copied, setCopied] = useState(false);
   const [recentRooms, setRecentRooms] = useState<RoomInfo[]>([]);
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
 
@@ -45,9 +45,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
           const uuids = roomId.replace('chat/', '').split('_');
           const otherUserId = uuids.find(id => id !== config.userId) || 'unknown';
           
+          // Find the other user's name from messages history
+          const otherUserMessage = messages.find((m: Message) => m.senderId !== config.userId);
+          const otherUserName = otherUserMessage ? otherUserMessage.sender : (otherUserId.slice(0, 12) + '...');
+          
           histories.push({
             roomId,
-            otherUserId: otherUserId.slice(0, 12) + '...',
+            otherUserId: otherUserId,
+            otherUserName: otherUserName,
             lastMessage: messages[messages.length - 1]?.text?.substring(0, 50),
             messageCount: messages.length,
             timestamp: messages[messages.length - 1]?.timestamp || 0,
@@ -72,16 +77,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
   const handleOpenChat = (history: ChatHistory) => {
     onJoinRoom({
       id: history.roomId,
-      name: `Chat with ${history.otherUserId}`,
+      name: `Chat with ${history.otherUserName}`,
       type: 'private'
     });
   };
 
-  const handleCopyId = () => {
-    navigator.clipboard.writeText(config.userId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleInvite = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +93,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
     
     onJoinRoom({
       id: topic,
-      name: `Private Chat`,
+      name: `Add user`,
       type: 'private'
     });
   };
@@ -118,37 +118,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
         </div>
       </div>
 
-      <div className="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="w-full max-w-2xl space-y-6">
         
-        {/* User Card */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-black/5 flex flex-col">
-          <div className="flex items-center gap-3 mb-4 text-indigo-600">
-            <Fingerprint className="w-6 h-6" />
-            <h2 className="text-lg font-semibold text-gray-900">Your User ID</h2>
-          </div>
-          <p className="text-sm text-gray-500 mb-4">Share this ID with others so they can invite you to a private chat.</p>
-          
-          <div className="mt-auto relative group">
-            <code className="block w-full text-xs font-mono bg-indigo-50/50 p-4 pr-12 rounded-xl border border-indigo-100/50 text-indigo-900 break-all select-all">
-              {config.userId}
-            </code>
-            <button
-              onClick={handleCopyId}
-              className="absolute top-1/2 -translate-y-1/2 right-2 p-2 bg-white/80 backdrop-blur-sm shadow-sm border border-indigo-100 rounded-lg text-indigo-600 hover:bg-white transition-colors"
-              title="Copy ID"
-            >
-              {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-            </button>
-          </div>
-        </div>
 
-        {/* Private Chat */}
+        {/* Add user */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-black/5">
            <div className="flex items-center gap-3 mb-4 text-emerald-500">
             <UserPlus className="w-6 h-6" />
-            <h2 className="text-lg font-semibold text-gray-900">Private Chat</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Add user</h2>
           </div>
-          <p className="text-sm text-gray-500 mb-6">Enter a User ID to start a secure direct chat.</p>
+          <p className="text-sm text-gray-500 mb-6">Enter a User ID to add someone for a direct chat.</p>
           
           <form onSubmit={handleInvite} className="space-y-3">
             <input
@@ -170,24 +149,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
 
         {/* Chat History */}
         {chatHistories.length > 0 && (
-          <div className="w-full max-w-2xl mt-8">
+          <div className="w-full max-w-2xl">
             <div className="flex items-center gap-3 mb-4 text-gray-700">
               <MessageCircle className="w-5 h-5" />
-              <h2 className="text-lg font-semibold">Saved Chat Histories</h2>
+              <h2 className="text-lg font-semibold">Chats</h2>
               <span className="text-sm text-gray-500">({chatHistories.length})</span>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-1">
               {chatHistories.map((history) => (
                 <div
                   key={history.roomId}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-black/5 hover:border-emerald-200 transition-colors"
+                  className="bg-white rounded-2xl p-3 shadow-sm border border-black/5 hover:border-emerald-200 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold text-gray-900">
-                          {history.otherUserId}
+                        <span 
+                          className="text-sm font-semibold text-gray-900 cursor-help"
+                          title={`User ID: ${history.otherUserId}`}
+                        >
+                          {history.otherUserName}
                         </span>
                         <span className="text-xs text-gray-400">
                           {history.messageCount} messages

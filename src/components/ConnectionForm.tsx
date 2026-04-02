@@ -118,7 +118,7 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect, onOpe
               </code>
               <p className="text-[10px] text-indigo-600/70 flex items-start gap-1">
                 <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                This persistent UUID allows others to invite you to private chats. Keep it safe!
+                This persistent UUID allows others to find and add you. Keep it safe!
               </p>
             </div>
 

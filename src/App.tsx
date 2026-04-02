@@ -186,6 +186,7 @@ export default function App() {
         onSave={handleSaveSettings} 
         onClose={() => setShowSettings(false)}
         onRemoveUser={config ? handleRemoveUser : undefined}
+        userId={config?.userId}
       />
     );
   }
