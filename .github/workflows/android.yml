@@ -50,14 +50,14 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Build Release APK
+      - name: Build Debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
 
-      - name: Upload Release APK
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
             name: mqqt-chat
-            path: android/app/build/outputs/apk/release/mqqt-chat.apk
+            path: android/app/build/outputs/apk/debug/mqqt-chat.apk
