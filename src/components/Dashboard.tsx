@@ -32,6 +32,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
       }
     }
     loadChatHistories();
+
+    // Listen for global messages to refresh list
+    const handleGlobalUpdate = () => loadChatHistories();
+    window.addEventListener('mqtt_message_global', handleGlobalUpdate);
+    return () => window.removeEventListener('mqtt_message_global', handleGlobalUpdate);
   }, []);
 
   const loadChatHistories = () => {
@@ -44,11 +49,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
           const roomId = key.replace('mqtt_history_', '');
           const uuids = roomId.replace('chat/', '').split('_');
           const otherUserId = uuids.find(id => id !== config.userId) || 'unknown';
-          
+
           // Find the other user's name from messages history
           const otherUserMessage = messages.find((m: Message) => m.senderId !== config.userId);
           const otherUserName = otherUserMessage ? otherUserMessage.sender : (otherUserId.slice(0, 12) + '...');
-          
+
           histories.push({
             roomId,
             otherUserId: otherUserId,
@@ -86,11 +91,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
   const handleInvite = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteId.trim() || inviteId === config.userId) return;
-    
+
     // Create direct topic based on both UUIDs sorted alphabetically
     const sortedIds = [config.userId, inviteId].sort();
     const topic = `chat/${sortedIds[0]}_${sortedIds[1]}`;
-    
+
     onJoinRoom({
       id: topic,
       name: `Add user`,
@@ -119,28 +124,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
       </div>
 
       <div className="w-full max-w-2xl space-y-6">
-        
+
 
         {/* Add user */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-black/5">
-           <div className="flex items-center gap-3 mb-4 text-emerald-500">
-            <UserPlus className="w-6 h-6" />
-            <h2 className="text-lg font-semibold text-gray-900">Add user</h2>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-black/5">
+          <div className="flex items-center gap-2 mb-3 text-emerald-500">
+            <UserPlus className="w-5 h-5" />
+            <h2 className="text-lg font-semibold text-gray-900 tracking-wider">Add user</h2>
           </div>
-          <p className="text-sm text-gray-500 mb-6">Enter a User ID to add someone for a direct chat.</p>
-          
-          <form onSubmit={handleInvite} className="space-y-3">
+
+          <form onSubmit={handleInvite} className="flex gap-2">
             <input
               type="text"
               value={inviteId}
               onChange={(e) => setInviteId(e.target.value)}
-              placeholder="Paste User ID here..."
-              className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium"
+              placeholder="User ID..."
+              className="flex-1 px-3 py-2 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium"
             />
             <button
               type="submit"
               disabled={!inviteId.trim() || inviteId === config.userId}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95 text-sm"
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95 text-sm whitespace-nowrap"
             >
               Connect
             </button>
@@ -155,7 +159,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
               <h2 className="text-lg font-semibold">Chats</h2>
               <span className="text-sm text-gray-500">({chatHistories.length})</span>
             </div>
-            
+
             <div className="space-y-1">
               {chatHistories.map((history) => (
                 <div
@@ -165,7 +169,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span 
+                        <span
                           className="text-sm font-semibold text-gray-900 cursor-help"
                           title={`User ID: ${history.otherUserId}`}
                         >
@@ -186,7 +190,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ config, onJoinRoom, onOpen
                         </p>
                       )}
                     </div>
-                    
+
                     <div className="flex items-center gap-2 ml-4">
                       <button
                         onClick={() => handleOpenChat(history)}

@@ -1,4 +1,4 @@
-export type MessageType = 'text' | 'invite' | 'accept' | 'call' | 'call_declined';
+export type MessageType = 'text' | 'invite' | 'accept' | 'call' | 'call_declined' | 'instant_call' | 'instant_call_declined';
 
 export interface Message {
   id: string;

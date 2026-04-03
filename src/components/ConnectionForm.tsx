@@ -29,9 +29,9 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect, onOpe
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
     if (config.username.trim() && !config.userId) {
-      const newUserId = Math.floor(10000 + Math.random() * 90000).toString();
+      const newUserId = Math.floor(1000000000 + Math.random() * 9000000000).toString();
       const sanitized = config.username.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-      const newClientId = `test_client_${Math.floor(Math.random() * 1000)}`;
+      const newClientId = `test_client_${Math.floor(1000000000 + Math.random() * 9000000000)}`;
       setConfig(prev => ({ ...prev, userId: newUserId, clientId: newClientId }));
       setStep(2);
     } else if (config.userId) {
@@ -130,12 +130,6 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({ onConnect, onOpe
             </button>
           </form>
         )}
-
-        <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-          <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">
-            Powered by MQTT Persistent Sessions
-          </p>
-        </div>
       </div>
     </div>
   );
